@@ -510,7 +510,7 @@ class BarcodeFillerApp(QWidget):
 
        
 
-        description_label = QLabel("يمكنك اختيار وضع التشغيل: <b>وضع الفك</b> (للباركودات الحكومية) أو <b>وضع النسخ المباشر</b> (لـ QR و 1D).")
+        description_label = QLabel("في وضع الفك سيتم لصق الحقل السادس فقط المفصول بالرمز #، كما سيتم تطبيق الفاصل بعده وفقًا لما هو محدد في ملف الإعدادات settings.json (مثل Tab أو Enter). في وضع النسخ المباشر يتم لصق النص كما هو.")
 
         settings_layout.addWidget(description_label)
 
@@ -780,11 +780,9 @@ class BarcodeFillerApp(QWidget):
 
     def demux_paste(self, data):
 
-        # هنا يتم تحليل البيانات
+        # لصق الحقل السادس فقط من البيانات المفصولة بـ # وتطبيق الفاصل من settings.json
 
         try:
-
-            # تعديل هنا: تقسيم البيانات بناءً على الفاصل #
 
             data_parts = data.split('#')
 
@@ -792,65 +790,57 @@ class BarcodeFillerApp(QWidget):
 
             # التأكد من أن عدد الحقول يتطابق
 
-            if len(data_parts) < 7:
+            if len(data_parts) < 6:
 
-                self.show_error_message(f"تنسيق البيانات غير صحيح. عدد الحقول المتوقع 7، لكن تم العثور على {len(data_parts)}. البيانات المستلمة: {data}")
+                self.show_error_message(f"تنسيق البيانات غير صحيح. يجب أن يحتوي النص على 6 حقول على الأقل مفصولة بـ #. البيانات المستلمة: {data}")
 
                 return
 
 
 
-            parsed_data = {
+            value_to_paste = data_parts[5]
 
-                "الاسم الأول": data_parts[0],
+           
 
-                "الاسم الأخير": data_parts[1],
+            sep_char = ""
 
-                "اسم الأب": data_parts[2],
+            try:
 
-                "اسم الأم": data_parts[3],
+                with open(self.settings_file, "r", encoding="utf-8") as f:
 
-                "مكان الميلاد": data_parts[4],
+                    settings_data = json.load(f)
 
-                "تاريخ الميلاد": data_parts[5],
+                if isinstance(settings_data, dict):
 
-                "الرقم الوطني": data_parts[6]
+                    fields = settings_data.get("fields", [])
 
-            }
+                    if len(fields) >= 6:
 
-       
+                        raw_sep = str(fields[5].get("separator", "")).strip().lower()
 
-            full_string = ""
+                        if raw_sep == "tab":
 
-            for i in range(len(self.field_combo_boxes)):
+                            sep_char = "\t"
 
-                field_name = self.field_combo_boxes[i].currentText()
+                        elif raw_sep == "enter":
 
-                separator = self.separator_inputs[i].text().strip().lower()
+                            sep_char = "\n"
 
-                if field_name:
+                        else:
 
-                    field_value = parsed_data.get(field_name, '')
+                            sep_char = fields[5].get("separator", "")
 
-                    full_string += field_value
+                except Exception:
 
-                   
-
-                    if separator == 'tab':
-
-                        full_string += '\t'
-
-                    elif separator == 'enter':
-
-                        full_string += '\n'
-
-                    else:
-
-                        full_string += separator
+                    sep_char = ""
 
 
 
-            if not full_string.strip():
+            full_string = f"{value_to_paste}{sep_char}"
+
+           
+
+            if not value_to_paste.strip():
 
                 self.comm.paste_warning.emit()
 
