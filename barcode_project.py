@@ -780,91 +780,45 @@ class BarcodeFillerApp(QWidget):
 
     def demux_paste(self, data):
 
-        # لصق الحقل السادس فقط من البيانات المفصولة بـ # وتطبيق الفاصل من settings.json
+		# لصق الحقل السادس فقط من البيانات المفصولة بـ # وتطبيق الفاصل من settings.json
+		try:
+			data_parts = data.split('#')
+			# التأكد من أن عدد الحقول يتطابق
+			if len(data_parts) < 6:
+				self.show_error_message(f"تنسيق البيانات غير صحيح. يجب أن يحتوي النص على 6 حقول على الأقل مفصولة بـ #. البيانات المستلمة: {data}")
+				return
 
-        try:
+			value_to_paste = data_parts[5]
+			sep_char = ""
+			try:
+				with open(self.settings_file, "r", encoding="utf-8") as f:
+					settings_data = json.load(f)
+				if isinstance(settings_data, dict):
+					fields = settings_data.get("fields", [])
+					if len(fields) >= 6:
+						raw_sep = str(fields[5].get("separator", "")).strip().lower()
+						if raw_sep == "tab":
+							sep_char = "\t"
+						elif raw_sep == "enter":
+							sep_char = "\n"
+						else:
+							sep_char = fields[5].get("separator", "")
+			except Exception:
+				sep_char = ""
 
-            data_parts = data.split('#')
+			full_string = f"{value_to_paste}{sep_char}"
+			if not value_to_paste.strip():
+				self.comm.paste_warning.emit()
+				return
 
-           
-
-            # التأكد من أن عدد الحقول يتطابق
-
-            if len(data_parts) < 6:
-
-                self.show_error_message(f"تنسيق البيانات غير صحيح. يجب أن يحتوي النص على 6 حقول على الأقل مفصولة بـ #. البيانات المستلمة: {data}")
-
-                return
-
-
-
-            value_to_paste = data_parts[5]
-
-           
-
-            sep_char = ""
-
-            try:
-
-                with open(self.settings_file, "r", encoding="utf-8") as f:
-
-                    settings_data = json.load(f)
-
-                if isinstance(settings_data, dict):
-
-                    fields = settings_data.get("fields", [])
-
-                    if len(fields) >= 6:
-
-                        raw_sep = str(fields[5].get("separator", "")).strip().lower()
-
-                        if raw_sep == "tab":
-
-                            sep_char = "\t"
-
-                        elif raw_sep == "enter":
-
-                            sep_char = "\n"
-
-                        else:
-
-                            sep_char = fields[5].get("separator", "")
-
-                except Exception:
-
-                    sep_char = ""
-
-
-
-            full_string = f"{value_to_paste}{sep_char}"
-
-           
-
-            if not value_to_paste.strip():
-
-                self.comm.paste_warning.emit()
-
-                return
-
-               
-
-            try:
-
-                pyperclip.copy(full_string)
-
-                time.sleep(0.5)
-
-                keyboard.send('ctrl+v')
-
-            except Exception as e:
-
-                self.comm.paste_error.emit(f"حدث خطأ أثناء عملية اللصق: {e}")
-
-       
-
-        except Exception as e:
-
-            self.show_error_message(f"حدث خطأ غير متوقع أثناء فك التشفير: {e}")
+			try:
+				pyperclip.copy(full_string)
+				time.sleep(0.5)
+				keyboard.send('ctrl+v')
+			except Exception as e:
+				self.comm.paste_error.emit(f"حدث خطأ أثناء عملية اللصق: {e}")
+		except Exception as e:
+			self.show_error_message(f"حدث خطأ غير متوقع أثناء فك التشفير: {e}")
 
 
 
