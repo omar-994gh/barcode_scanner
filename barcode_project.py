@@ -390,7 +390,7 @@ class BarcodeFillerApp(QWidget):
 
         header_layout.addWidget(logo_label)
 
-        except ImportError:
+    except ImportError:
 
       text_logo = QLabel("Barcode Filler Logo")
 
@@ -768,7 +768,7 @@ class BarcodeFillerApp(QWidget):
 
  
 
-    def demux_paste(self, data):
+  def demux_paste(self, data):
         # لصق الحقل السادس فقط من البيانات المفصولة بـ # وتطبيق الفاصل من settings.json
         try:
             data_parts = data.split('#')
