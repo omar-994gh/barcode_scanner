@@ -1,0 +1,30 @@
+[
+    {
+        "field": "الاسم الأول",
+        "separator": "Enter"
+    },
+    {
+        "field": "الاسم الأخير",
+        "separator": "Enter"
+    },
+    {
+        "field": "اسم الأب",
+        "separator": "Enter"
+    },
+    {
+        "field": "اسم الأم",
+        "separator": "Enter"
+    },
+    {
+        "field": "مكان الميلاد",
+        "separator": "Enter"
+    },
+    {
+        "field": "تاريخ الميلاد",
+        "separator": "Enter"
+    },
+    {
+        "field": "الرقم الوطني",
+        "separator": ""
+    }
+]
