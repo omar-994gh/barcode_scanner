@@ -390,16 +390,6 @@ class BarcodeFillerApp(QWidget):
 
                 header_layout.addWidget(logo_label)
 
-            else:
-
-                text_logo = QLabel("Barcode Filler Logo")
-
-                text_logo.setObjectName("logoLabel")
-
-                text_logo.setStyleSheet("font-size: 24px; font-weight: bold; color: #007bff; text-align: center;")
-
-                header_layout.addWidget(text_logo)
-
         except ImportError:
 
             text_logo = QLabel("Barcode Filler Logo")
@@ -510,7 +500,7 @@ class BarcodeFillerApp(QWidget):
 
        
 
-        description_label = QLabel("يمكنك اختيار وضع التشغيل: <b>وضع الفك</b> (للباركودات الحكومية) أو <b>وضع النسخ المباشر</b> (لـ QR و 1D).")
+        description_label = QLabel("في وضع الفك سيتم لصق الحقل السادس فقط المفصول بالرمز #، كما سيتم تطبيق الفاصل بعده وفقًا لما هو محدد في ملف الإعدادات settings.json (مثل Tab أو Enter). في وضع النسخ المباشر يتم لصق النص كما هو.")
 
         settings_layout.addWidget(description_label)
 
@@ -779,102 +769,45 @@ class BarcodeFillerApp(QWidget):
    
 
     def demux_paste(self, data):
+        # لصق الحقل السادس فقط من البيانات المفصولة بـ # وتطبيق الفاصل من settings.json
+        try:
+            data_parts = data.split('#')
+            # التأكد من أن عدد الحقول يتطابق
+            if len(data_parts) < 6:
+                self.show_error_message(f"تنسيق البيانات غير صحيح. يجب أن يحتوي النص على 6 حقول على الأقل مفصولة بـ #. البيانات المستلمة: {data}")
+                return
 
-        # هنا يتم تحليل البيانات
+            value_to_paste = data_parts[5]
+            sep_char = ""
+            try:
+                with open(self.settings_file, "r", encoding="utf-8") as f:
+                    settings_data = json.load(f)
+                if isinstance(settings_data, dict):
+                    fields = settings_data.get("fields", [])
+                    if len(fields) >= 6:
+                        raw_sep = str(fields[5].get("separator", "")).strip().lower()
+                        if raw_sep == "tab":
+                            sep_char = "\t"
+                        elif raw_sep == "enter":
+                            sep_char = "\n"
+                        else:
+                            sep_char = fields[5].get("separator", "")
+            except Exception:
+                sep_char = ""
 
-        try:
+            full_string = f"{value_to_paste}{sep_char}"
+            if not value_to_paste.strip():
+                self.comm.paste_warning.emit()
+                return
 
-            # تعديل هنا: تقسيم البيانات بناءً على الفاصل #
-
-            data_parts = data.split('#')
-
-           
-
-            # التأكد من أن عدد الحقول يتطابق
-
-            if len(data_parts) < 7:
-
-                self.show_error_message(f"تنسيق البيانات غير صحيح. عدد الحقول المتوقع 7، لكن تم العثور على {len(data_parts)}. البيانات المستلمة: {data}")
-
-                return
-
-
-
-            parsed_data = {
-
-                "الاسم الأول": data_parts[0],
-
-                "الاسم الأخير": data_parts[1],
-
-                "اسم الأب": data_parts[2],
-
-                "اسم الأم": data_parts[3],
-
-                "مكان الميلاد": data_parts[4],
-
-                "تاريخ الميلاد": data_parts[5],
-
-                "الرقم الوطني": data_parts[6]
-
-            }
-
-       
-
-            full_string = ""
-
-            for i in range(len(self.field_combo_boxes)):
-
-                field_name = self.field_combo_boxes[i].currentText()
-
-                separator = self.separator_inputs[i].text().strip().lower()
-
-                if field_name:
-
-                    field_value = parsed_data.get(field_name, '')
-
-                    full_string += field_value
-
-                   
-
-                    if separator == 'tab':
-
-                        full_string += '\t'
-
-                    elif separator == 'enter':
-
-                        full_string += '\n'
-
-                    else:
-
-                        full_string += separator
-
-
-
-            if not full_string.strip():
-
-                self.comm.paste_warning.emit()
-
-                return
-
-               
-
-            try:
-
-                pyperclip.copy(full_string)
-
-                time.sleep(0.5)
-
-                keyboard.send('ctrl+v')
-
-            except Exception as e:
-
-                self.comm.paste_error.emit(f"حدث خطأ أثناء عملية اللصق: {e}")
-
-       
-
-        except Exception as e:
-
-            self.show_error_message(f"حدث خطأ غير متوقع أثناء فك التشفير: {e}")
+            try:
+                pyperclip.copy(full_string)
+                time.sleep(0.5)
+                keyboard.send('ctrl+v')
+            except Exception as e:
+                self.comm.paste_error.emit(f"حدث خطأ أثناء عملية اللصق: {e}")
+        except Exception as e:
+            self.show_error_message(f"حدث خطأ غير متوقع أثناء فك التشفير: {e}")
 
 
 
