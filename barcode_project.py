@@ -500,7 +500,7 @@ class BarcodeFillerApp(QWidget):
 
    
 
-    description_label = QLabel("في وضع الفك سيتم لصق الحقل السادس فقط المفصول بالرمز #، كما سيتم تطبيق الفاصل بعده وفقًا لما هو محدد في ملف الإعدادات settings.json (مثل Tab أو Enter). في وضع النسخ المباشر يتم لصق النص كما هو.")
+    description_label = QLabel("في وضع الفك سيتم لصق الحقول الستة الأولى فقط المفصولة بالرمز #، وسيتم تطبيق الفاصل بعد كل حقل وفقًا لما هو محدد في ملف الإعدادات settings.json (مثل Tab أو Enter). في وضع النسخ المباشر يتم لصق النص كما هو.")
 
     settings_layout.addWidget(description_label)
 
@@ -769,34 +769,40 @@ class BarcodeFillerApp(QWidget):
  
 
   def demux_paste(self, data):
-        # لصق الحقل السادس فقط من البيانات المفصولة بـ # وتطبيق الفاصل من settings.json
+        # لصق الحقول الستة الأولى من البيانات المفصولة بـ # وتطبيق الفواصل من settings.json
         try:
             data_parts = data.split('#')
-            # التأكد من أن عدد الحقول يتطابق
+            # يجب توفر 6 حقول على الأقل
             if len(data_parts) < 6:
                 self.show_error_message(f"تنسيق البيانات غير صحيح. يجب أن يحتوي النص على 6 حقول على الأقل مفصولة بـ #. البيانات المستلمة: {data}")
                 return
 
-            value_to_paste = data_parts[5]
-            sep_char = ""
+            # تحميل الفواصل من settings.json لكل من الحقول الستة الأولى
+            separators = ["", "", "", "", "", ""]
             try:
                 with open(self.settings_file, "r", encoding="utf-8") as f:
                     settings_data = json.load(f)
                 if isinstance(settings_data, dict):
-                    fields = settings_data.get("fields", [])
-                    if len(fields) >= 6:
-                        raw_sep = str(fields[5].get("separator", "")).strip().lower()
-                        if raw_sep == "tab":
-                            sep_char = "\t"
-                        elif raw_sep == "enter":
-                            sep_char = "\n"
-                        else:
-                            sep_char = fields[5].get("separator", "")
+                    fields_cfg = settings_data.get("fields", [])
+                    for i in range(6):
+                        if i < len(fields_cfg):
+                            raw_sep = str(fields_cfg[i].get("separator", "")).strip().lower()
+                            if raw_sep == "tab":
+                                separators[i] = "\t"
+                            elif raw_sep == "enter":
+                                separators[i] = "\n"
+                            else:
+                                separators[i] = fields_cfg[i].get("separator", "")
             except Exception:
-                sep_char = ""
+                pass
 
-            full_string = f"{value_to_paste}{sep_char}"
-            if not value_to_paste.strip():
+            # بناء السلسلة من الحقول الستة الأولى
+            full_string = ""
+            for i in range(6):
+                full_string += data_parts[i]
+                full_string += separators[i]
+
+            if not ("".join(data_parts[:6])).strip():
                 self.comm.paste_warning.emit()
                 return
 
