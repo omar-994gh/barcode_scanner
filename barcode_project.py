@@ -14,6 +14,8 @@ import serial
 
 import serial.tools.list_ports
 
+import subprocess
+
 from PyQt6.QtWidgets import (
 
   QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -24,7 +26,7 @@ from PyQt6.QtWidgets import (
 
 from PyQt6.QtCore import pyqtSignal, QObject, Qt, QThread
 
-from PyQt6.QtGui import QIcon, QPixmap, QShortcut, QKeySequence
+from PyQt6.QtGui import QIcon, QPixmap, QShortcut, QKeySequence, QMouseEvent
 
 
 
@@ -63,6 +65,42 @@ def resource_path(relative_path):
     base_path = os.path.abspath(".")
 
   return os.path.join(base_path, relative_path)
+
+
+
+class ClickableLabel(QLabel):
+
+  def __init__(self, text="", parent=None):
+
+    super().__init__(text, parent)
+
+    self.image_path = ""
+
+    self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    
+
+  def set_image_path(self, path):
+
+    self.image_path = path
+
+    
+
+  def mousePressEvent(self, event: QMouseEvent):
+
+    if event.button() == Qt.MouseButton.LeftButton and self.image_path:
+
+      try:
+
+        pyperclip.copy(self.image_path)
+
+        QMessageBox.information(self, "تم النسخ", f"تم نسخ مسار الصورة إلى الحافظة:\n{self.image_path}")
+
+      except Exception as e:
+
+        QMessageBox.warning(self, "خطأ في النسخ", f"فشل في نسخ المسار إلى الحافظة:\n{str(e)}")
+
+    super().mousePressEvent(event)
 
 
 
@@ -516,7 +554,35 @@ class BarcodeFillerApp(QWidget):
 
     mode_layout.addWidget(self.mode_combo_box)
 
+    
+
+    # Add capture button next to mode selection
+
+    self.capture_button = QPushButton("التقاط صورة")
+
+    self.capture_button.setStyleSheet("background-color: #007bff; color: white; padding: 8px; border-radius: 4px;")
+
+    self.capture_button.clicked.connect(self.capture_image)
+
+    mode_layout.addWidget(self.capture_button)
+
+    
+
     settings_layout.addLayout(mode_layout)
+
+    
+
+    # Add image path display
+
+    self.image_path_label = ClickableLabel("مسار الصورة: لم يتم التقاط صورة بعد")
+
+    self.image_path_label.setStyleSheet("padding: 8px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;")
+
+    self.image_path_label.setWordWrap(True)
+
+    self.image_path_label.setToolTip("انقر لنسخ المسار")
+
+    settings_layout.addWidget(self.image_path_label)
 
    
 
@@ -753,6 +819,126 @@ class BarcodeFillerApp(QWidget):
         self.serial_thread.stop()
 
         self.serial_thread = None
+
+        
+
+  def capture_image(self):
+
+    """Capture image using open_wid.py and display the path"""
+
+    try:
+
+      # Disable the capture button during capture
+
+      self.capture_button.setEnabled(False)
+
+      self.capture_button.setText("جاري التقاط الصورة...")
+
+      self.capture_button.setStyleSheet("background-color: #6c757d; color: white; padding: 8px; border-radius: 4px;")
+
+      
+
+      # Run the open_wid.py script
+
+      result = subprocess.run([sys.executable, "open_wid.py"], 
+
+                            capture_output=True, text=True, timeout=60)
+
+      
+
+      if result.returncode == 0:
+
+        # Parse the output to find the image path
+
+        output_lines = result.stdout.strip().split('\n')
+
+        image_path = None
+
+        for line in output_lines:
+
+          if line.startswith("SUCCESS:"):
+
+            image_path = line.replace("SUCCESS:", "").strip()
+
+            break
+
+          elif "Image saved at:" in line:
+
+            image_path = line.split("Image saved at:")[1].strip()
+
+            break
+
+        
+
+        if image_path and os.path.exists(image_path):
+
+          # Display the image path in a copyable format
+
+          self.image_path_label.setText(f"مسار الصورة: {image_path}")
+
+          self.image_path_label.setStyleSheet("padding: 8px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; color: #155724;")
+
+          self.image_path_label.set_image_path(image_path)
+
+          QMessageBox.information(self, "نجح التقاط الصورة", f"تم التقاط الصورة بنجاح!\nالمسار: {image_path}")
+
+        else:
+
+          self.image_path_label.setText("مسار الصورة: فشل في العثور على الصورة المحفوظة")
+
+          self.image_path_label.setStyleSheet("padding: 8px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;")
+
+          self.image_path_label.set_image_path("")
+
+          QMessageBox.warning(self, "خطأ في التقاط الصورة", "فشل في العثور على الصورة المحفوظة")
+
+      else:
+
+        error_msg = result.stderr if result.stderr else "خطأ غير معروف في عملية التقاط الصورة"
+
+        self.image_path_label.setText(f"مسار الصورة: {error_msg}")
+
+        self.image_path_label.setStyleSheet("padding: 8px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;")
+
+        self.image_path_label.set_image_path("")
+
+        QMessageBox.critical(self, "خطأ في التقاط الصورة", f"حدث خطأ أثناء التقاط الصورة:\n{error_msg}")
+
+        
+
+    except subprocess.TimeoutExpired:
+
+      self.image_path_label.setText("مسار الصورة: انتهت مهلة العملية")
+
+      self.image_path_label.setStyleSheet("padding: 8px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;")
+
+      self.image_path_label.set_image_path("")
+
+      QMessageBox.warning(self, "انتهت المهلة", "انتهت مهلة عملية التقاط الصورة")
+
+    except Exception as e:
+
+      self.image_path_label.setText(f"مسار الصورة: خطأ - {str(e)}")
+
+      self.image_path_label.setStyleSheet("padding: 8px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;")
+
+      self.image_path_label.set_image_path("")
+
+      QMessageBox.critical(self, "خطأ في التقاط الصورة", f"حدث خطأ غير متوقع:\n{str(e)}")
+
+    finally:
+
+      # Re-enable the capture button
+
+      self.capture_button.setEnabled(True)
+
+      self.capture_button.setText("التقاط صورة")
+
+      self.capture_button.setStyleSheet("background-color: #007bff; color: white; padding: 8px; border-radius: 4px;")
+
+      
+
+
 
 
 
